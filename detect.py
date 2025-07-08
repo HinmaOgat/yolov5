@@ -248,7 +248,8 @@ def run(
             s += "{:g}x{:g} ".format(*im.shape[2:])  # print string
             gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
             imc = im0.copy() if save_crop else im0  # for save_crop
-            annotator = Annotator(im0, line_width=line_thickness, example=str(names))www
+            annotator = Annotator(im0, line_width=line_thickness, example=str(names))
+
             if len(det):
                 # Rescale boxes from img_size to im0 size
                 det[:, :4] = scale_boxes(im.shape[2:], det[:, :4], im0.shape).round()
@@ -258,6 +259,8 @@ def run(
                     n = (det[:, 5] == c).sum()  # detections per class
                     s += f"{n} {names[int(c)]}{'s' * (n > 1)}, "  # add to string
 
+                coordsList = []
+                heightList = []
                 # Write results
                 for *xyxy, conf, cls in reversed(det):
                     c = int(cls)  # integer class
@@ -290,21 +293,34 @@ def run(
                     for coord in coords: #rounds to two decimal places
                         coords[coords.index(coord)] = round(coord,2)
 
-                    if(coords[0]-coords[2]/2) < 0:
-                        xmin.append([0])
-                    else:
-                        xmin.append([coords[0]-coords[2]/2])
-                    if(coords[0]+coords[2]/2) > 1:
-                        xmax.append([1])
-                    else:
-                        xmax.append([coords[0]+coords[2]/2])
-
                     if save_img or save_crop or view_img:  # Add bbox to image
                         c = int(cls)  # integer class
                         label = None if hide_labels else ('a' if hide_conf else f'{coords[0]-coords[2]/2} {coords[0]+coords[2]/2}')#label = None if hide_labels else (names[c] if hide_conf else f"{names[c]} {conf:.2f}")
                         annotator.box_label(xyxy, label, color=colors(c, True))
                     if save_crop:
                         save_one_box(xyxy, imc, file=save_dir / "crops" / names[c] / f"{p.stem}.jpg", BGR=True)
+                    
+                    coordsList.append(coords)
+
+                    height = (coords[1]+coords[3]/2) - (coords[1]-coords[3]/2)
+
+                    heightList.append(height)   
+
+                    print(f'coordsList: {coordsList}')
+                    print(f'heightList: {heightList}')
+
+                coords = coordsList[heightList.index(max(heightList))]
+
+                print(f'Presenter coordinates: {coords}')
+
+                if(coords[0]-coords[2]/2) < 0:
+                    xmin.append([0])
+                else:
+                    xmin.append([coords[0]-coords[2]/2])
+                if(coords[0]+coords[2]/2) > 1:
+                    xmax.append([1])
+                else:
+                    xmax.append([coords[0]+coords[2]/2])
 
             # Stream results
             im0 = annotator.result()
@@ -349,14 +365,14 @@ def run(
     print('qwertyujbnuhh')
     ypoints1 = np.array(xmin)
     ypoints2 = np.array(xmax)
-    print(xmin)
-    print(xmax)
+    print(f'xmin: {xmin}')
+    print(f'xmax:{xmax}')
     minxmin = min(xmin)[0]
-    print(minxmin)
+    print(f'minxmin: {minxmin}')
     maxxmax = max(xmax)[0]
-    print(maxxmax)
+    print(f'maxxmax: {maxxmax}')
     spaceUtilized = f'{(maxxmax - minxmin)*100}%'
-    print(spaceUtilized)
+    print(f'spaceUtilized:{spaceUtilized}')
     plt.plot(ypoints1)
     plt.plot(ypoints2)
     plt.ylim(0,1)
