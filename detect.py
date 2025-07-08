@@ -34,8 +34,10 @@ import os
 import platform
 import sys
 from pathlib import Path
-
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
+import time
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
@@ -65,11 +67,12 @@ from utils.general import (
 )
 from utils.torch_utils import select_device, smart_inference_mode
 
+print(1)
 
 @smart_inference_mode()
 def run(
     weights=ROOT / "yolov5s.pt",  # model path or triton URL
-    source=ROOT / "data/images",  # file/dir/URL/glob/screen/0(webcam)
+    source=ROOT / "data/images",#"file/dir/URL/glob/screen/0",#ROOT / "testvidforvolo1.mp4",#ROOT / "data/images",  # file/dir/URL/glob/screen/0(webcam)
     data=ROOT / "data/coco128.yaml",  # dataset.yaml path
     imgsz=(640, 640),  # inference size (height, width)
     conf_thres=0.25,  # confidence threshold
@@ -98,6 +101,8 @@ def run(
     dnn=False,  # use OpenCV DNN for ONNX inference
     vid_stride=1,  # video frame-rate stride
 ):
+    xmax = []
+    xmin = []
     """
     Runs YOLOv5 detection inference on various sources like images, videos, directories, streams, etc.
 
@@ -148,6 +153,8 @@ def run(
         run(source='data/videos/example.mp4', weights='yolov5s.pt', conf_thres=0.4, device='0')
         ```
     """
+    print(source)
+    
     source = str(source)
     save_img = not nosave and not source.endswith(".txt")  # save inference images
     is_file = Path(source).suffix[1:] in (IMG_FORMATS + VID_FORMATS)
@@ -241,7 +248,7 @@ def run(
             s += "{:g}x{:g} ".format(*im.shape[2:])  # print string
             gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
             imc = im0.copy() if save_crop else im0  # for save_crop
-            annotator = Annotator(im0, line_width=line_thickness, example=str(names))
+            annotator = Annotator(im0, line_width=line_thickness, example=str(names))www
             if len(det):
                 # Rescale boxes from img_size to im0 size
                 det[:, :4] = scale_boxes(im.shape[2:], det[:, :4], im0.shape).round()
@@ -260,7 +267,14 @@ def run(
 
                     if save_csv:
                         write_to_csv(p.name, label, confidence_str)
-
+                    if save_format == 0:
+                        coords = (
+                            (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()
+                        )  # normalized xywh
+                    else:
+                        coords = (torch.tensor(xyxy).view(1, 4) / gn).view(-1).tolist()  # xyxy
+                    print(coords)
+                    '''
                     if save_txt:  # Write to file
                         if save_format == 0:
                             coords = (
@@ -268,13 +282,26 @@ def run(
                             )  # normalized xywh
                         else:
                             coords = (torch.tensor(xyxy).view(1, 4) / gn).view(-1).tolist()  # xyxy
+                        print(coords)
                         line = (cls, *coords, conf) if save_conf else (cls, *coords)  # label format
                         with open(f"{txt_path}.txt", "a") as f:
-                            f.write(("%g " * len(line)).rstrip() % line + "\n")
+                            f.write(("%g " * len(line)).rstrip() % line + "\n")'''
+
+                    for coord in coords: #rounds to two decimal places
+                        coords[coords.index(coord)] = round(coord,2)
+
+                    if(coords[0]-coords[2]/2) < 0:
+                        xmin.append([0])
+                    else:
+                        xmin.append([coords[0]-coords[2]/2])
+                    if(coords[0]+coords[2]/2) > 1:
+                        xmax.append([1])
+                    else:
+                        xmax.append([coords[0]+coords[2]/2])
 
                     if save_img or save_crop or view_img:  # Add bbox to image
                         c = int(cls)  # integer class
-                        label = None if hide_labels else (names[c] if hide_conf else f"{names[c]} {conf:.2f}")
+                        label = None if hide_labels else ('a' if hide_conf else f'{coords[0]-coords[2]/2} {coords[0]+coords[2]/2}')#label = None if hide_labels else (names[c] if hide_conf else f"{names[c]} {conf:.2f}")
                         annotator.box_label(xyxy, label, color=colors(c, True))
                     if save_crop:
                         save_one_box(xyxy, imc, file=save_dir / "crops" / names[c] / f"{p.stem}.jpg", BGR=True)
@@ -319,7 +346,24 @@ def run(
         LOGGER.info(f"Results saved to {colorstr('bold', save_dir)}{s}")
     if update:
         strip_optimizer(weights[0])  # update model (to fix SourceChangeWarning)
-
+    print('qwertyujbnuhh')
+    ypoints1 = np.array(xmin)
+    ypoints2 = np.array(xmax)
+    print(xmin)
+    print(xmax)
+    minxmin = min(xmin)[0]
+    print(minxmin)
+    maxxmax = max(xmax)[0]
+    print(maxxmax)
+    spaceUtilized = f'{(maxxmax - minxmin)*100}%'
+    print(spaceUtilized)
+    plt.plot(ypoints1)
+    plt.plot(ypoints2)
+    plt.ylim(0,1)
+    plt.xlabel("Frame")
+    plt.ylabel("Distance from left side (0 to 1)")
+    print('shoulda shown')
+    plt.savefig(f"plots/plot{s}.png") 
 
 def parse_opt():
     """
@@ -367,10 +411,10 @@ def parse_opt():
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--weights", nargs="+", type=str, default=ROOT / "yolov5s.pt", help="model path or triton URL")
-    parser.add_argument("--source", type=str, default=ROOT / "data/images", help="file/dir/URL/glob/screen/0(webcam)")
+    parser.add_argument("--source", type=str, default=ROOT / "ming (2).mp4", help="file/dir/URL/glob/screen/0(webcam)")
     parser.add_argument("--data", type=str, default=ROOT / "data/coco128.yaml", help="(optional) dataset.yaml path")
     parser.add_argument("--imgsz", "--img", "--img-size", nargs="+", type=int, default=[640], help="inference size h,w")
-    parser.add_argument("--conf-thres", type=float, default=0.25, help="confidence threshold")
+    parser.add_argument("--conf-thres", type=float, default=0.45, help="confidence threshold")
     parser.add_argument("--iou-thres", type=float, default=0.45, help="NMS IoU threshold")
     parser.add_argument("--max-det", type=int, default=1000, help="maximum detections per image")
     parser.add_argument("--device", default="", help="cuda device, i.e. 0 or 0,1,2,3 or cpu")
@@ -386,7 +430,7 @@ def parse_opt():
     parser.add_argument("--save-conf", action="store_true", help="save confidences in --save-txt labels")
     parser.add_argument("--save-crop", action="store_true", help="save cropped prediction boxes")
     parser.add_argument("--nosave", action="store_true", help="do not save images/videos")
-    parser.add_argument("--classes", nargs="+", type=int, help="filter by class: --classes 0, or --classes 0 2 3")
+    parser.add_argument("--classes", nargs="+", type=int, help="filter by class: --classes 0, or --classes 0 2 3",default="0")
     parser.add_argument("--agnostic-nms", action="store_true", help="class-agnostic NMS")
     parser.add_argument("--augment", action="store_true", help="augmented inference")
     parser.add_argument("--visualize", action="store_true", help="visualize features")
@@ -431,8 +475,6 @@ def main(opt):
     """
     check_requirements(ROOT / "requirements.txt", exclude=("tensorboard", "thop"))
     run(**vars(opt))
-
-
 if __name__ == "__main__":
     opt = parse_opt()
     main(opt)
